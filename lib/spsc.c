@@ -7,11 +7,14 @@
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <linux/futex.h>
+#include <sys/syscall.h>
+#include <stdatomic.h>
 
 #define SPSC_HEADER_BYTE_1 0x52
 #define SPSC_HEADER_BYTE_2 0x42
 #define SPSC_VERSION 1
-
 
 static inline size_t get_next_power_of_two(const size_t n)
 {
@@ -98,6 +101,7 @@ static int spsc_create(spsc_ring* ring, const char* pathname, const size_t size)
 		spsc_data->_wpos = 0;
 		spsc_data->_version = SPSC_VERSION;
 		spsc_data->_size = rounded_size;
+		spsc_data->_futex_word = 0;
 	}
 	else if (spsc_data->_size != rounded_size)
 	{
@@ -206,6 +210,36 @@ MSG_SIZE_T spsc_write(spsc_ring* ring, const void* buf, const MSG_SIZE_T n)
 
 	__atomic_store(&data->_wpos, &wpos, __ATOMIC_RELEASE);
 	return n;
+}
+
+static int futex_wait(int *addr, int val)
+{
+	return syscall(SYS_futex, addr, FUTEX_WAIT, val, NULL, NULL, 0);
+}
+
+static int futex_wake(int *addr)
+{
+	return syscall(SYS_futex, addr, FUTEX_WAKE, 1, NULL, NULL, 0);
+}
+
+int spsc_wait_for_data(spsc_ring* ring)
+{
+	int rvl = 0;
+
+	/* sleep while value is 0 */
+	while (atomic_load(&ring->_data->_futex_word) == 0)
+		rvl = futex_wait(&ring->_data->_futex_word, 0);
+
+	/* consume event */
+	atomic_store(&ring->_data->_futex_word, 0);
+
+	return rvl;
+}
+
+int spsc_wake_reader(spsc_ring* ring)
+{
+	atomic_store(&ring->_data->_futex_word, 1);
+	return futex_wake(&ring->_data->_futex_word);
 }
 
 size_t inline spsc_size(const spsc_ring* ring)

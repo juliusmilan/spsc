@@ -23,6 +23,14 @@ int main(int argc, char** argv)
 		{
 			puts("Failed to write.");
 		}
+//#define INTERUPT_MODE
+#ifdef INTERUPT_MODE
+		else
+		{
+			spsc_wake_reader(&ring);
+		}
+#endif /* INTERUPT_MODE */
+
 		puts("Enter text: ");
 	}
 

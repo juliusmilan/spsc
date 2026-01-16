@@ -24,6 +24,9 @@ typedef struct spsc_ring_data
 	size_t _wpos;
 	char __pad2[64];
 
+	int _futex_word;
+	char __pad3[64];
+
 	char _buf[];
 } spsc_ring_data;
 
@@ -81,6 +84,20 @@ size_t spsc_read(spsc_ring* ring, void* dest, const size_t n);
  * @return the number of bytes copied, or 0 if the ring is full.
  */
 MSG_SIZE_T spsc_write(spsc_ring* ring, const void* src, const MSG_SIZE_T n);
+
+/**
+ * Wait until data occur in the ring (interupt mode, reader side).
+ * @param ring pointer to a spsc_ring structure
+ * @return 0 if successful, otherwise an error code is returned.
+ */
+int spsc_wait_for_data(spsc_ring* ring);
+
+/**
+ * Signalize to reader that the data has been sent (interupt mode, writer side).
+ * @param ring pointer to a spsc_ring structure
+ * @return 0 if successful, otherwise an error code is returned.
+ */
+int spsc_wake_reader(spsc_ring* ring);
 
 /**
  * Gets an approximate size of the ring. The returned number depends on whether the publishing thread or subscribing thread called the method. The behvaiour is undefined for any other calling thread.

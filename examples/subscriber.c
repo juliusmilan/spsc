@@ -19,6 +19,14 @@ int main(int argc, char** argv)
 	char buf[256];
 	while (1)
 	{
+//#define INTERUPT_MODE
+#ifdef INTERUPT_MODE
+		/* FUTEX based interupt mode, otherwise subscriber busy-waits.
+		 * NOTE: Must be enabled on both subscriber and publisher side.
+		 */
+		spsc_wait_for_data(&ring);
+#endif /* INTERUPT_MODE */
+
 		size_t n_read = spsc_read(&ring, buf, 255); 
 		if (n_read > 0)
 		{
